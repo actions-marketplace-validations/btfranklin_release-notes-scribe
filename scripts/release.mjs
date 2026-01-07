@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 
 function run(cmd, args, options = {}) {
   execFileSync(cmd, args, { stdio: "inherit", ...options });
@@ -28,6 +29,11 @@ if (!/^v\d+\.\d+\.\d+([+-][0-9A-Za-z.-]+)?$/.test(tag)) {
 
 const version = tag.slice(1);
 
+const pkg = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8")
+);
+const currentVersion = pkg?.version ?? "";
+
 const status = output("git", ["status", "--porcelain"]);
 if (status) {
   die("Working tree is not clean. Commit or stash changes before releasing.");
@@ -43,7 +49,11 @@ if (branch !== "main") {
   console.warn(`Warning: releasing from branch '${branch}', expected 'main'.`);
 }
 
-run("npm", ["version", "--no-git-tag-version", version]);
+if (currentVersion !== version) {
+  run("npm", ["version", "--no-git-tag-version", version]);
+} else {
+  console.log(`package.json already at ${version}; skipping version update.`);
+}
 
 if (!skipTests) {
   run("npm", ["test"]);
