@@ -31016,7 +31016,7 @@ async function run() {
         if (!commitShas.length) {
             core.warning("No commits found between tags; nothing to summarize.");
         }
-        const commits = (0, lib_1.buildCommitData)(commitShas, maxDiffLines);
+        const commits = (0, lib_1.buildCommitData)(commitShas, maxDiffLines, logger);
         const octokit = (0, github_1.getOctokit)(githubToken);
         let githubNotes = "";
         if (includeGithubNotes) {
@@ -31099,9 +31099,12 @@ const noopLogger = {
     warning: () => { },
 };
 function runGit(args, options = {}) {
-    const { allowFailure = false, trim = true } = options;
+    const { allowFailure = false, trim = true, maxBuffer } = options;
     try {
-        const output = (0, node_child_process_1.execFileSync)("git", args, { encoding: "utf8" });
+        const output = (0, node_child_process_1.execFileSync)("git", args, {
+            encoding: "utf8",
+            ...(maxBuffer ? { maxBuffer } : {}),
+        });
         return trim ? output.trimEnd() : output;
     }
     catch (error) {
@@ -31256,11 +31259,24 @@ function extractDiffLines(diff, maxLines, sha) {
     }
     return results;
 }
-function buildCommitData(shas, maxDiffLines) {
+function formatErrorMessage(error) {
+    if (error instanceof Error) {
+        return error.message;
+    }
+    return String(error);
+}
+function buildCommitData(shas, maxDiffLines, logger = noopLogger) {
     return shas.map((sha) => {
         const message = runGit(["log", "-1", "--pretty=format:%s%n%n%b", sha]).trim();
-        const diff = runGit(["show", "--no-color", "--unified=0", "--pretty=format:", sha], { trim: false });
-        const diffLines = extractDiffLines(diff, maxDiffLines, sha);
+        let diffLines = [];
+        try {
+            const diff = runGit(["show", "--no-color", "--unified=0", "--pretty=format:", sha], { trim: false, maxBuffer: 10 * 1024 * 1024 });
+            diffLines = extractDiffLines(diff, maxDiffLines, sha);
+        }
+        catch (error) {
+            logger.warning(`Failed to read diff for ${sha.slice(0, 7)}: ${formatErrorMessage(error)}. Falling back to file summary.`);
+            diffLines = fallbackFileChanges(sha, maxDiffLines);
+        }
         return {
             sha,
             message: message || "(no commit message)",

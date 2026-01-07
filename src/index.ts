@@ -78,7 +78,7 @@ async function run(): Promise<void> {
       core.warning("No commits found between tags; nothing to summarize.");
     }
 
-    const commits = buildCommitData(commitShas, maxDiffLines);
+    const commits = buildCommitData(commitShas, maxDiffLines, logger);
 
     const octokit = getOctokit(githubToken);
 

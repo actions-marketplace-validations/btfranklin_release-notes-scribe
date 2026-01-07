@@ -21,13 +21,17 @@ const noopLogger: Logger = {
 type GitCommandOptions = {
   allowFailure?: boolean;
   trim?: boolean;
+  maxBuffer?: number;
 };
 
 export function runGit(args: string[], options: GitCommandOptions = {}): string {
-  const { allowFailure = false, trim = true } = options;
+  const { allowFailure = false, trim = true, maxBuffer } = options;
 
   try {
-    const output = execFileSync("git", args, { encoding: "utf8" });
+    const output = execFileSync("git", args, {
+      encoding: "utf8",
+      ...(maxBuffer ? { maxBuffer } : {}),
+    });
     return trim ? output.trimEnd() : output;
   } catch (error) {
     if (allowFailure) {
@@ -230,17 +234,35 @@ export function extractDiffLines(
   return results;
 }
 
+function formatErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
 export function buildCommitData(
   shas: string[],
-  maxDiffLines: number
+  maxDiffLines: number,
+  logger: Logger = noopLogger
 ): CommitData[] {
   return shas.map((sha) => {
     const message = runGit(["log", "-1", "--pretty=format:%s%n%n%b", sha]).trim();
-    const diff = runGit(
-      ["show", "--no-color", "--unified=0", "--pretty=format:", sha],
-      { trim: false }
-    );
-    const diffLines = extractDiffLines(diff, maxDiffLines, sha);
+    let diffLines: string[] = [];
+    try {
+      const diff = runGit(
+        ["show", "--no-color", "--unified=0", "--pretty=format:", sha],
+        { trim: false, maxBuffer: 10 * 1024 * 1024 }
+      );
+      diffLines = extractDiffLines(diff, maxDiffLines, sha);
+    } catch (error) {
+      logger.warning(
+        `Failed to read diff for ${sha.slice(0, 7)}: ${formatErrorMessage(
+          error
+        )}. Falling back to file summary.`
+      );
+      diffLines = fallbackFileChanges(sha, maxDiffLines);
+    }
 
     return {
       sha,
