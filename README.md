@@ -1,5 +1,8 @@
 # Release Notes Scribe
 
+![Release Notes Scribe banner](https://raw.githubusercontent.com/btfranklin/release-notes-scribe/main/.github/social%20preview/release_notes_scribe_social_preview.jpg "Release Notes Scribe")
+[![Build Status](https://github.com/btfranklin/release-notes-scribe/actions/workflows/ci.yml/badge.svg)](https://github.com/btfranklin/release-notes-scribe/actions/workflows/ci.yml)
+
 Generate draft GitHub release notes using the OpenAI Responses API, based on the commit messages and diffs between tags.
 
 ## How it works
